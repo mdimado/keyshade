@@ -542,4 +542,66 @@ export class WorkspaceService {
       })) > 0
     )
   }
+  /**
+ * Gets all workspace invitations for a user, paginated.
+ * @param user The user to get the workspace invitations for
+ * @param page The page number to get
+ * @param limit The number of items per page to get
+ * @param sort The field to sort by
+ * @param order The order to sort in
+ * @returns The workspace invitations of the user, paginated, with metadata
+ */
+async getWorkspaceInvitations(
+  user: User,
+  page: number,
+  limit: number,
+  sort: string = 'invitedAt',
+  order: string = 'desc'
+) {
+  // Get workspace invitations for the user
+  const items = await this.prisma.workspaceMember.findMany({
+    where: {
+      userId: user.id,
+      status: 'INVITED' 
+    },
+    skip: page * limit,
+    take: Number(limit),
+    orderBy: {
+      [sort]: order
+    },
+    include: {
+      workspace: true // Include workspace details
+    }
+  })
+
+  // Transform the result to include only necessary details
+  const transformedItems = items.map(item => ({
+    workspace: {
+      id: item.workspace.id,
+      name: item.workspace.name,
+      slug: item.workspace.slug,
+      icon: item.workspace.icon
+    },
+    invitedAt: item.createdAt, 
+    status: item.status
+  }))
+
+  // Get total count of workspace invitations
+  const totalCount = await this.prisma.workspaceMember.count({
+    where: {
+      userId: user.id,
+      status: 'INVITED'
+    }
+  })
+
+  // Calculate pagination metadata
+  const metadata = paginate(totalCount, `/workspace/invitations`, {
+    page,
+    limit: limitMaxItemsPerPage(limit),
+    sort,
+    order
+  })
+
+  return { items: transformedItems, metadata }
+}
 }

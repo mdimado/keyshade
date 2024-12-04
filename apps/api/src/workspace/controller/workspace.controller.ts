@@ -97,4 +97,21 @@ export class WorkspaceController {
   ) {
     return this.workspaceService.globalSearch(user, workspaceSlug, searchTerm)
   }
+  @Get('invitations')
+@RequiredApiKeyAuthorities(Authority.READ_WORKSPACE)
+async getWorkspaceInvitations(
+  @CurrentUser() user: User,
+  @Query('page') page: number = 0,
+  @Query('limit') limit: number = 10,
+  @Query('sort') sort: string = 'invitedAt',
+  @Query('order') order: string = 'desc'
+) {
+  return this.workspaceService.getWorkspaceInvitations(
+    user,
+    page,
+    limit,
+    sort,
+    order
+  )
+}
 }

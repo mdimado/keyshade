@@ -839,4 +839,100 @@ describe('Workspace Controller Tests', () => {
       expect(response.json().environments).toHaveLength(2)
     })
   })
+  describe('Workspace Invitation Tests', () => {
+  let app: INestApplication
+  let prismaService: PrismaService
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule]
+    }).compile()
+
+    app = moduleFixture.createNestApplication()
+    prismaService = moduleFixture.get<PrismaService>(PrismaService)
+    await app.init()
+  })
+
+  afterAll(async () => {
+    await app.close()
+  })
+
+  it('should return workspace invitations with pagination', async () => {
+
+    const user = await createTestUser(prismaService)
+    const token = await loginUser(app, user.email, 'password123')
+
+    const workspaces = await Promise.all([
+      createTestWorkspace(prismaService, 'Workspace 1', user),
+      createTestWorkspace(prismaService, 'Workspace 2', user),
+      createTestWorkspace(prismaService, 'Workspace 3', user)
+    ])
+
+    await Promise.all(
+      workspaces.map(workspace => 
+        prismaService.workspaceMember.update({
+          where: {
+            workspaceId_userId: {
+              workspaceId: workspace.id,
+              userId: user.id
+            }
+          },
+          data: {
+            status: 'INVITED',
+            createdAt: new Date()
+          }
+        })
+      )
+    )
+
+    const response = await request(app.getHttpServer())
+      .get('/workspace/invitations')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+
+    expect(response.body.items).toHaveLength(3)
+    expect(response.body.metadata).toBeDefined()
+    expect(response.body.items[0].workspace).toHaveProperty('name')
+    expect(response.body.items[0]).toHaveProperty('invitedAt')
+    expect(response.body.items[0]).toHaveProperty('status', 'INVITED')
+  })
+
+  it('should support pagination of workspace invitations', async () => {
+    const user = await createTestUser(prismaService)
+    const token = await loginUser(app, user.email, 'password123')
+
+    const workspaces = await Promise.all([
+      createTestWorkspace(prismaService, 'Workspace 1', user),
+      createTestWorkspace(prismaService, 'Workspace 2', user),
+      createTestWorkspace(prismaService, 'Workspace 3', user)
+    ])
+
+    await Promise.all(
+      workspaces.map(workspace => 
+        prismaService.workspaceMember.update({
+          where: {
+            workspaceId_userId: {
+              workspaceId: workspace.id,
+              userId: user.id
+            }
+          },
+          data: {
+            status: 'INVITED',
+            createdAt: new Date()
+          }
+        })
+      )
+    )
+
+    const response = await request(app.getHttpServer())
+      .get('/workspace/invitations?page=0&limit=2')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+
+    expect(response.body.items).toHaveLength(2)
+    expect(response.body.metadata.totalPages).toBe(2)
+    expect(response.body.metadata.currentPage).toBe(0)
+    expect(response.body.metadata.totalItems).toBe(3)
+  })
+})
 })
